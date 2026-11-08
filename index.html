@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#101827">
+<meta name="description" content="Temporizador para Rummikub">
+<link rel="manifest" href="manifest.json">
+<title>Rummikub Timer</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:system-ui;background:#101827;color:white}
+body{display:flex;flex-direction:column}
+#timer{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;touch-action:manipulation;background:radial-gradient(circle,#203c5d,#101827 72%);user-select:none}
+#time{font-size:min(35vw,29vh);font-weight:900;letter-spacing:-.06em}
+#hint{font-size:clamp(14px,4vw,22px);margin-top:20px;text-align:center;padding:0 20px}
+#timer.urgent{background:radial-gradient(circle,#713b17,#241521)}
+#timer.critical{background:radial-gradient(circle,#9b2020,#241018);animation:pulse .4s infinite alternate}
+@keyframes pulse{to{filter:brightness(1.5)}}
+#panel{padding:12px 14px calc(14px + env(safe-area-inset-bottom));background:#0b111c;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap}
+label{font-size:14px;color:#cbd5e1}
+input{width:90px;padding:10px;border-radius:10px;border:1px solid #46566b;background:#172334;color:white;font-size:18px;text-align:center}
+button{border:0;border-radius:10px;padding:11px 15px;background:#29a36a;color:white;font-weight:800;font-size:16px}
+#config{background:#334155}
+</style>
+</head>
+<body>
+<div id="timer">
+<div id="time">60</div>
+<div id="hint">CONFIGURA EL TIEMPO Y PULSA INICIAR</div>
+</div>
+<div id="panel">
+<label for="seconds">Segundos por turno</label>
+<input id="seconds" type="number" min="1" max="9999" value="60">
+<button id="config">Configurar</button>
+<button id="start">▶ Iniciar</button>
+</div>
+<script>
+(()=>{
+const timer=document.querySelector('#timer');
+const display=document.querySelector('#time');
+const hint=document.querySelector('#hint');
+const input=document.querySelector('#seconds');
+const config=document.querySelector('#config');
+const start=document.querySelector('#start');
+let duration=60,remaining=60,running=false,interval=null,lastBeep=-1,ctx=null;
+function audio(){if(!ctx)ctx=new(window.AudioContext||window.webkitAudioContext)();if(ctx.state==='suspended')ctx.resume();return ctx}
+function tone(freq=440,d=.1,type='sine',vol=.1,slide=0){let c=audio(),o=c.createOscillator(),g=c.createGain(),t=c.currentTime;o.type=type;o.frequency.setValueAtTime(freq,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(35,freq+slide),t+d);g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+d)}
+function resetSound(){tone(520,.1,'square',.1,300);setTimeout(()=>tone(850,.12,'triangle',.1,-350),90);setTimeout(()=>tone(400,.15,'sawtooth',.07,180),190)}
+function urgency(sec){tone(sec<=5?1000:740,.07,'square',sec<=5?.14:.09,sec<=5?250:0)}
+function fart(){let c=audio(),o=c.createOscillator(),g=c.createGain(),t=c.currentTime;o.type='sawtooth';o.frequency.setValueAtTime(120,t);o.frequency.linearRampToValueAtTime(45,t+.55);g.gain.setValueAtTime(.22,t);g.gain.setValueAtTime(.17,t+.18);g.gain.exponentialRampToValueAtTime(.001,t+.65);o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+.66)}
+function render(){display.textContent=remaining;timer.classList.toggle('urgent',running&&remaining<=10&&remaining>5);timer.classList.toggle('critical',running&&remaining<=5)}
+function stop(){running=false;if(interval)clearInterval(interval);interval=null;start.textContent='▶ Iniciar';render()}
+function tick(){remaining=Math.max(0,remaining-1);render();if(remaining<=10&&remaining>0&&remaining!==lastBeep){urgency(remaining);lastBeep=remaining}if(remaining===0){stop();hint.textContent='¡TIEMPO! 💨';fart()}}
+function begin(){audio();if(remaining<=0)remaining=duration;running=true;start.textContent='Ⅱ Pausar';hint.textContent='TOCA LA PANTALLA PARA REINICIAR';render();interval=setInterval(tick,1000)}
+function restartTurn(){audio();stop();remaining=duration;lastBeep=-1;resetSound();hint.textContent='¡NUEVO TURNO!';begin()}
+config.addEventListener('click',()=>{audio();duration=Math.max(1,Math.min(9999,parseInt(input.value,10)||60));input.value=duration;stop();remaining=duration;lastBeep=-1;render();hint.textContent='Tiempo guardado. Pulsa Iniciar';tone(660,.12,'triangle',.1)});
+start.addEventListener('click',()=>{audio();if(running)stop();else begin()});
+timer.addEventListener('pointerdown',e=>{e.preventDefault();restartTurn()});
+render();
+})();
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'))}
+</script>
+</body>
+</html>
